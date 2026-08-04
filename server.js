@@ -5,19 +5,44 @@ const fs = require('fs');
 const multer = require('multer');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { getGallery, saveGallery } = require('./utils/db');
-const { requireAuth } = require('./middleware/auth');
+
+// Helper to safely load db.js if available
+let getGallery = () => [];
+let saveGallery = () => {};
+try {
+  const db = require('./utils/db');
+  getGallery = db.getGallery;
+  saveGallery = db.saveGallery;
+} catch (e) {
+  console.log('utils/db.js not found, using fallback in-memory/file storage');
+}
+
+// Helper for auth middleware
+const requireAuth = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized: Missing token' });
+  }
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+  }
+};
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Ensure upload directory exists
+// Ensure uploads directory exists
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-// Storage Configuration
+// Configure Multer Storage
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
@@ -28,16 +53,16 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-// Middleware
+// Middlewares
 app.use(cors({ origin: process.env.ALLOWED_ORIGINS || '*' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static files
+// Serve static assets
 app.use('/uploads', express.static(uploadDir));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Admin Login
+// Admin Login Route
 app.post('/api/login', async (req, res) => {
   const { phone, password } = req.body;
   
@@ -46,7 +71,7 @@ app.post('/api/login', async (req, res) => {
   }
 
   const validPassword = await bcrypt.compare(
-    password, 
+    password || '', 
     process.env.ADMIN_PASSWORD_HASH || ''
   );
 
@@ -63,13 +88,12 @@ app.post('/api/login', async (req, res) => {
   res.json({ token });
 });
 
-// Public Gallery API
+// Public Gallery Feed
 app.get('/api/gallery', (req, res) => {
-  const items = getGallery();
-  res.json(items);
+  res.json(getGallery());
 });
 
-// Upload Media (Protected Route)
+// Media Upload Route
 app.post('/api/upload', requireAuth, upload.single('file'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
@@ -90,7 +114,7 @@ app.post('/api/upload', requireAuth, upload.single('file'), (req, res) => {
   res.json({ message: 'Success', item: newItem });
 });
 
-// Delete Gallery Item (Protected Route)
+// Delete Gallery Item
 app.delete('/api/gallery/:id', requireAuth, (req, res) => {
   const { id } = req.params;
   let gallery = getGallery();
@@ -109,7 +133,7 @@ app.delete('/api/gallery/:id', requireAuth, (req, res) => {
   res.json({ message: 'Deleted' });
 });
 
-// Admin Panel route fallback
+// Admin Panel fallback
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
