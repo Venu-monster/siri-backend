@@ -1,0 +1,22 @@
+{
+  "name": "siri-beauty-admin-backend",
+  "version": "1.0.0",
+  "description": "Admin-only backend for Siri Beauty World: upload photos & videos from your phone, shown live on the website.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "hash-password": "node scripts/hash-password.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.4.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.2.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,80 @@
+<!--
+  HOW TO USE THIS FILE
+  =====================
+  This is NOT a standalone page — it's a snippet to drop into your main
+  website (siri-beauty-world.html).
+
+  1. Deploy the admin backend somewhere (see README.md), so you have a
+     live URL like: https://siri-admin.onrender.com
+
+  2. In siri-beauty-world.html, set GALLERY_API below to:
+       https://siri-admin.onrender.com/api/gallery
+
+  3. Paste the <script> block below just before the closing </body> tag
+     of siri-beauty-world.html (after the existing <script> block is fine).
+
+  WHAT IT DOES
+  =====================
+  On page load, it fetches whatever you've uploaded from your phone and
+  replaces the gallery grid with it — photos AND videos, newest first.
+  If the API can't be reached (e.g. backend not deployed yet, or it's
+  down), the existing hand-picked photos already in the HTML stay exactly
+  as they are. Nothing breaks either way.
+-->
+
+<script>
+(function () {
+  // TODO: replace with your deployed backend URL, e.g.
+  // "https://siri-admin.onrender.com/api/gallery"
+  const GALLERY_API = "https://YOUR-BACKEND-DOMAIN/api/gallery";
+
+  async function loadLiveGallery() {
+    if (GALLERY_API.includes("YOUR-BACKEND-DOMAIN")) return; // not configured yet
+
+    try {
+      const res = await fetch(GALLERY_API);
+      if (!res.ok) return;
+      const items = await res.json();
+      if (!Array.isArray(items) || items.length === 0) return;
+
+      const grid = document.querySelector("#gallery .gallery-grid");
+      if (!grid) return;
+
+      const backendOrigin = new URL(GALLERY_API).origin;
+
+      grid.innerHTML = items
+        .map((item, i) => {
+          const fullUrl = item.url.startsWith("http")
+            ? item.url
+            : backendOrigin + item.url;
+          const caption = (item.caption || "").replace(/</g, "&lt;");
+          const media =
+            item.type === "video"
+              ? `<video src="${fullUrl}" muted playsinline preload="metadata"></video>`
+              : `<img src="${fullUrl}" alt="${caption}"/>`;
+
+          return `
+            <div class="gi">
+              ${media}
+              <div class="gi-overlay">
+                <div class="gi-line"></div>
+                <div class="gi-label">${caption || "Our Work"}</div>
+                <div class="gi-sub">${item.type === "video" ? "Video" : "Photo"}</div>
+              </div>
+            </div>`;
+        })
+        .join("");
+
+      // videos: play a muted preview on hover, pause on mouse-leave
+      grid.querySelectorAll(".gi video").forEach((v) => {
+        v.addEventListener("mouseenter", () => v.play().catch(() => {}));
+        v.addEventListener("mouseleave", () => { v.pause(); v.currentTime = 0; });
+      });
+    } catch {
+      // Silently keep the existing static gallery — no error shown to visitors
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", loadLiveGallery);
+})();
+</script>
